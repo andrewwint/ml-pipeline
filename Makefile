@@ -7,9 +7,11 @@ help:
 	@echo "  validate         - Validate CloudFormation template"
 	@echo "  deploy           - Deploy complete infrastructure (IaC)"
 	@echo "  update-lambda    - Update Lambda function code only"
+	@echo "  update-sagemaker-proxy - Update SageMaker proxy Lambda"
 	@echo "  test-api         - Test Customer Insights API"
 	@echo "  test-sagemaker   - Test SageMaker K-means endpoint"
 	@echo "  get-api-url      - Get GenAI API endpoint"
+	@echo "  get-sagemaker-api-url - Get SageMaker API endpoint"
 	@echo "  get-endpoints    - List SageMaker model endpoints"
 	@echo "  get-model-artifacts - Show model artifacts in S3"
 	@echo "  status           - Check deployment status"
@@ -125,6 +127,13 @@ get-api-url:
 		--query 'Stacks[0].Outputs[?OutputKey==`GenAIApiUrl`].OutputValue' \
 		--output text
 
+# Get SageMaker API URL
+get-sagemaker-api-url:
+	@aws cloudformation describe-stacks \
+		--stack-name ml-pipeline-stack \
+		--query 'Stacks[0].Outputs[?OutputKey==`SageMakerApiUrl`].OutputValue' \
+		--output text
+
 # Get SageMaker model endpoints
 get-endpoints:
 	@echo "SageMaker Endpoints:"
@@ -144,6 +153,14 @@ get-model-artifacts:
 update-lambda: package-lambda
 	@echo "📦 Updating Lambda function..."
 	python scripts/deploy_lambda.py --s3 --keep-zip
+
+# Update SageMaker proxy Lambda
+update-sagemaker-proxy:
+	@echo "📦 Updating SageMaker proxy Lambda..."
+	zip -j sagemaker-proxy.zip src/genai/sagemaker_proxy.py
+	aws lambda update-function-code --function-name ml-pipeline-sagemaker-proxy-dev --zip-file fileb://sagemaker-proxy.zip
+	rm -f sagemaker-proxy.zip
+	@echo "✅ SageMaker proxy Lambda updated!"
 
 # Deploy Lambda via S3 (for CloudFormation)
 deploy-lambda-s3:

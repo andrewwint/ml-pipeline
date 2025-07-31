@@ -190,7 +190,10 @@ Resources:
               - Effect: Allow
                 Action:
                   - sagemaker:InvokeEndpoint
-                Resource: !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/*"
+                  - sagemaker:ListEndpoints
+                Resource: 
+                  - !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/*"
+                  - "*"
         - PolicyName: S3Access
           PolicyDocument:
             Version: "2012-10-17"
@@ -360,7 +363,7 @@ Resources:
         - Key: ModelBucket
           Value: !Ref ModelBucket
 
-  # ==================== Lambda Function ====================
+  # ==================== Lambda Functions ====================
   GenAILambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -391,6 +394,100 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  SageMakerProxyLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-sagemaker-proxy-${Environment}"
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import csv
+          import io
+          
+          def handler(event, context):
+              try:
+                  # Parse request body
+                  body = json.loads(event['body']) if event.get('body') else {}
+                  
+                  # Extract customer features (normalized: Age, Income, Purchases)
+                  features = body.get('features', [])
+                  
+                  if not features or len(features) == 0:
+                      return {
+                          'statusCode': 400,
+                          'headers': {'Content-Type': 'application/json'},
+                          'body': json.dumps({
+                              'error': 'Missing features array',
+                              'example': {'features': [[-1.14, -1.13, 0.68], [-1.67, -0.81, -0.22]]}
+                          })
+                      }
+                  
+                  # Convert to CSV format for SageMaker
+                  csv_buffer = io.StringIO()
+                  writer = csv.writer(csv_buffer)
+                  for feature_row in features:
+                      writer.writerow(feature_row)
+                  csv_data = csv_buffer.getvalue().strip()
+                  
+                  # Call SageMaker endpoint
+                  sagemaker = boto3.client('sagemaker-runtime')
+                  
+                  # Find the kmeans endpoint
+                  sagemaker_client = boto3.client('sagemaker')
+                  endpoints = sagemaker_client.list_endpoints()['Endpoints']
+                  kmeans_endpoint = None
+                  
+                  for endpoint in endpoints:
+                      if 'kmeans' in endpoint['EndpointName'].lower():
+                          kmeans_endpoint = endpoint['EndpointName']
+                          break
+                  
+                  if not kmeans_endpoint:
+                      return {
+                          'statusCode': 404,
+                          'headers': {'Content-Type': 'application/json'},
+                          'body': json.dumps({'error': 'No K-means endpoint found'})
+                      }
+                  
+                  response = sagemaker.invoke_endpoint(
+                      EndpointName=kmeans_endpoint,
+                      ContentType='text/csv',
+                      Accept='application/json',
+                      Body=csv_data
+                  )
+                  
+                  result = json.loads(response['Body'].read().decode())
+                  
+                  # Add metadata
+                  return {
+                      'statusCode': 200,
+                      'headers': {'Content-Type': 'application/json'},
+                      'body': json.dumps({
+                          'predictions': result.get('predictions', result),
+                          'endpoint': kmeans_endpoint,
+                          'model': 'K-means Customer Segmentation',
+                          'features_processed': len(features)
+                      })
+                  }
+                  
+              except Exception as e:
+                  return {
+                      'statusCode': 500,
+                      'headers': {'Content-Type': 'application/json'},
+                      'body': json.dumps({'error': str(e)})
+                  }
+      MemorySize: 512
+      Timeout: 30
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
   # ==================== API Gateway ====================
   GenAIApi:
     Type: AWS::ApiGateway::RestApi
@@ -408,6 +505,13 @@ Resources:
       ParentId: !GetAtt GenAIApi.RootResourceId
       PathPart: insights
 
+  SageMakerApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref GenAIApi
+      ParentId: !GetAtt GenAIApi.RootResourceId
+      PathPart: segment
+
   GenAIApiMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -419,6 +523,18 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenAILambdaFunction.Arn}/invocations"
+
+  SageMakerApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref GenAIApi
+      ResourceId: !Ref SageMakerApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SageMakerProxyLambdaFunction.Arn}/invocations"
 
   GenAIApiOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -444,11 +560,37 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
+  SageMakerApiOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref GenAIApi
+      ResourceId: !Ref SageMakerApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ""
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
   GenAIApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - GenAIApiMethod
       - GenAIApiOptionsMethod
+      - SageMakerApiMethod
+      - SageMakerApiOptionsMethod
     Properties:
       RestApiId: !Ref GenAIApi
       StageName: !Ref Environment
@@ -457,6 +599,14 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref GenAILambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GenAIApi}/*/*"
+
+  SageMakerLambdaApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SageMakerProxyLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GenAIApi}/*/*"
@@ -503,3 +653,9 @@ Outputs:
     Value: !GetAtt GenAILambdaFunction.Arn
     Export:
       Name: !Sub "${AWS::StackName}-LambdaFunctionArn"
+
+  SageMakerApiUrl:
+    Description: URL of the SageMaker K-means API
+    Value: !Sub "https://${GenAIApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/segment"
+    Export:
+      Name: !Sub "${AWS::StackName}-SageMakerApiUrl"

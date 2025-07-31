@@ -76,6 +76,9 @@ Thumbs.db
 *.bak
 *.swp
 *~
+response.json
+sagemaker-proxy.zip
+genai-insights.zip
 
 # Documentation
 site/

@@ -141,13 +141,13 @@ ml-pipeline/
 
 #### Implementation Details
 
-1. **Lambda Function**
+1. **Lambda Function** Sentiment analysis from customer free-form text feedback to generate marketing insights using AWS Bedrock:
 
    - AWS Bedrock integration for GenAI processing
-   - Local adverse event detection
    - Multi-language support (English, Spanish, French)
+   - Local adverse event detection
 
-2. **API Design**
+2. **API Design** (API token not implemented in this version)
 
    - RESTful API via API Gateway
    - Input: Free-form customer feedback text
@@ -156,7 +156,7 @@ ml-pipeline/
 3. **Performance Optimization**
    - Sub-2 second response times
    - 90% confidence accuracy
-   - Real-time safety concern detection
+   - Latency experienced from Bedrock API calls using SageMaker inference endpoint, ESC Fargate would be more efficient as it can handle concurrent requests more efficiently.
 
 ## Prerequisites
 

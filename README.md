@@ -58,105 +58,29 @@ ml-pipeline/
 
 ## Task Implementation
 
-### Task 1: Model Development & Deployment
+### Task 1: Customer Segmentation ML Model
+- **Dataset**: 1000 customers with Age, Income, Purchases, Gender features
+- **Algorithm**: K-means clustering (5 optimal clusters, 0.62 silhouette score)
+- **Deployment**: SageMaker endpoint with 150ms inference, auto-scaling 1-4 instances
+- **Public API**: Available via Lambda proxy at `/segment` endpoint
 
-#### Dataset
+*See [notebooks/README.md](notebooks/README.md) for detailed implementation and testing*
 
-- **Source**: customer_segmentation_data.csv (1000 rows, 5 columns)
-- **Features**: Customer_ID, Age, Income, Purchases, Gender
-- **Target**: Customer segments for targeted marketing
+### Task 2: Infrastructure as Code
+- **CloudFormation**: Complete automation with S3 buckets, IAM roles, SageMaker notebook
+- **Security**: Least privilege access, S3 encryption, API Gateway CORS
+- **Cost Controls**: Manual notebook management, lifecycle policies
+- **One-Command**: `make deploy` provisions entire stack
 
-#### Model Approach
+*See [infrastructure/cloudformation-complete.yaml](infrastructure/cloudformation-complete.yaml) for complete template*
 
-- **Algorithm**: K-means clustering with optimal k determination
-- **Validation**: Elbow method + Silhouette score
-- **Performance**: < 200ms inference latency target
+### Task 3: GenAI Customer Insights
+- **Model**: AWS Bedrock Claude-3-Haiku for sentiment analysis
+- **Features**: Multi-language support, safety detection, marketing insights
+- **Performance**: 1.6-2.7s response time, 90% confidence accuracy
+- **API**: RESTful endpoint at `/insights` for customer feedback processing
 
-#### Key Components
-
-1. **Exploratory Data Analysis**
-
-   - Correlation analysis and feature distributions
-   - Pair plots for feature relationships
-   - Statistical summaries and outlier detection
-
-2. **Feature Engineering**
-
-   - Gender encoding (one-hot encoding)
-   - Numerical feature normalization (StandardScaler)
-   - Feature correlation analysis
-
-3. **Model Training**
-
-   - Optimal k selection (3-8 clusters)
-   - Model validation using silhouette scores
-   - SageMaker training job with ml.m5.xlarge instances
-
-4. **Deployment**
-   - SageMaker real-time endpoint
-   - Auto-scaling configuration (min: 1, max: 4 instances)
-   - CloudWatch monitoring and alerting
-
-### Task 2: Infrastructure as Code (CloudFormation)
-
-#### Architecture Components
-
-1. **Storage Layer**
-
-   - S3 bucket for training data with versioning
-   - S3 bucket for model artifacts with lifecycle policies
-   - S3 bucket for logs with encryption
-
-2. **Compute Layer**
-
-   - SageMaker notebook instance (ml.t3.medium)
-   - Lambda function for GenAI insights
-   - API Gateway for REST endpoints
-
-3. **Security Layer**
-
-   - Least privilege IAM roles
-   - S3 bucket encryption and access controls
-   - API Gateway CORS configuration
-
-4. **Monitoring Layer**
-   - CloudWatch logs and metrics
-   - Stack outputs for easy access
-   - Cost tracking with tags
-
-#### CloudFormation Benefits
-
-- Declarative infrastructure definition
-- Built-in rollback on failures
-- Stack-based resource management
-- One-command deployment and teardown
-
-### Task 3: Customer Insights GenAI Integration
-
-#### Model Selection
-
-- **Primary**: AWS Bedrock Claude-3-Haiku
-- **Use Case**: Transform customer feedback into marketing insights
-- **Features**: Sentiment analysis, unmet needs detection, safety concerns
-
-#### Implementation Details
-
-1. **Lambda Function** Sentiment analysis from customer free-form text feedback to generate marketing insights using AWS Bedrock:
-
-   - AWS Bedrock integration for GenAI processing
-   - Multi-language support (English, Spanish, French)
-   - Local adverse event detection
-
-2. **API Design** (API token not implemented in this version)
-
-   - RESTful API via API Gateway
-   - Input: Free-form customer feedback text
-   - Output: Sentiment, insights, recommendations, safety concerns
-
-3. **Performance Optimization**
-   - Sub-2 second response times
-   - 90% confidence accuracy
-   - Latency experienced from Bedrock API calls using SageMaker inference endpoint, ESC Fargate would be more efficient as it can handle concurrent requests more efficiently.
+*See [src/README.md](src/README.md) for API documentation and usage examples*
 
 ## Prerequisites
 

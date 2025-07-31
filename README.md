@@ -67,6 +67,8 @@ ml-pipeline/
 
 _See [notebooks/README.md](notebooks/README.md) for detailed implementation and testing_
 
+_See [notebooks/CustomerSegmentation.ipynb](notebooks/CustomerSegmentation.ipynb) for the deployed notebook_
+
 ### Task 2: Infrastructure as Code
 
 - **CloudFormation**: Complete automation with S3 buckets, IAM roles, SageMaker notebook

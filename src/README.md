@@ -41,30 +41,31 @@ POST /insights
 
 ```json
 {
-    "sentiment_score": -0.2,
-    "sentiment_label": "mixed",
+    "sentiment_score": -0.8,
+    "sentiment_label": "negative",
     "language_detected": "english",
     "insights": {
-        "unmet_needs": [
-            "Simplified setup process",
-            "Better documentation",
-            "Installation support"
-        ],
-        "pain_points": [
-            "Complex setup procedure",
-            "Time-consuming installation"
-        ],
-        "positive_aspects": [
-            "Product functionality satisfaction"
-        ]
+        "unmet_needs": ["product safety", "device reliability"],
+        "pain_points": ["device overheating", "burn injury"],
+        "positive_aspects": []
     },
     "recommendations": [
-        "Develop quick-start guide",
-        "Create video tutorials",
-        "Offer setup assistance service"
+        "prioritize product safety testing",
+        "improve device cooling mechanisms",
+        "add clear safety warnings"
     ],
-    "processing_time_ms": 1850,
-    "confidence": 0.87
+    "adverse_events": ["burn"],
+    "safety_concerns": [{
+        "event": "burn",
+        "severity": "mild",
+        "confidence": 0.8,
+        "safety_category": "Thermal Injury",
+        "detected_phrase": "The device got very hot and burned my hand..."
+    }],
+    "processing_time_ms": 1520,
+    "confidence": 0.95,
+    "model": "claude-3-haiku",
+    "status": "success"
 }
 ```
 
@@ -113,10 +114,12 @@ POST /insights
 
 ```
 src/genai/
-├── genai_insights.py     # Main Lambda handler
+├── genai_insights.py     # Main GenAI Lambda handler
+├── sagemaker_proxy.py    # SageMaker endpoint proxy Lambda
 ├── prompts.py           # Marketing-focused prompt templates
 ├── adverse_events.py    # Safety concern detection
-└── utils.py            # Input validation and utilities
+├── utils.py            # Input validation and utilities
+└── requirements.txt     # Python dependencies
 ```
 
 ## Usage Examples
@@ -143,14 +146,14 @@ curl -X POST https://api-url/insights \
   }'
 ```
 
-### Survey Response Processing
+### Safety Issue Detection
 ```bash
 curl -X POST https://api-url/insights \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "El producto es bueno pero el precio es muy alto",
-    "source": "survey",
-    "category": "pricing_feedback"
+    "text": "The device got very hot and burned my hand during use. This is dangerous!",
+    "source": "customer_complaint",
+    "category": "safety_issue"
   }'
 ```
 

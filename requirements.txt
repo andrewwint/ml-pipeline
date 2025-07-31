@@ -1,0 +1,4 @@
+scikit-learn
+seaborn
+pandas
+numexpr>=2.8.4

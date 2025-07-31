@@ -1,0 +1,103 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# AWS
+.aws/
+*.pem
+
+# CDK
+cdk.out/
+.cdk.staging/
+cdk.context.json
+infrastructure/node_modules/
+infrastructure/package-lock.json
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ML/Data
+data/*.csv
+!data/customer_segmentation_data.csv
+models/
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+*.onnx
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Documentation
+site/
+docs/_build/
+
+# Lambda packages (keep deployment packages in git)
+# lambda_packages/
+# *.zip
+
+# Terraform (if used)
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Security
+*.key
+*.crt
+*.csr
+secrets/
+
+# Cache
+.cache/
+.mypy_cache/
+.ruff_cache/
+.cl*

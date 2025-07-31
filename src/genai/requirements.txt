@@ -1,0 +1,5 @@
+# AWS SDK (Lambda runtime includes boto3, but specifying for local testing)
+boto3>=1.28.0
+
+# For better error handling and typing
+typing-extensions>=4.5.0

@@ -1,0 +1,505 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Complete ML Pipeline Infrastructure using SageMaker Code Repository for secure Git integration and auto-shutdown for cost optimization."
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: ml-pipeline
+    Description: Name of the project
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+
+  SageMakerInstanceType:
+    Type: String
+    Default: ml.m5.large
+    Description: Instance type for SageMaker endpoint
+
+  NotebookInstanceType:
+    Type: String
+    Default: ml.t3.medium
+    Description: Instance type for notebook
+
+Resources:
+  # ==================== S3 Buckets ====================
+  DataBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Sub "${ProjectName}-data-${AWS::AccountId}-${AWS::Region}"
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldData
+            Status: Enabled
+            ExpirationInDays: 90
+            NoncurrentVersionExpirationInDays: 30
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  ModelBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Sub "${ProjectName}-models-${AWS::AccountId}-${AWS::Region}"
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  LogsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Sub "${ProjectName}-logs-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: 30
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ==================== IAM Roles ====================
+  SageMakerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-sagemaker-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "${DataBucket.Arn}/*"
+                  - !Sub "${ModelBucket.Arn}/*"
+                  - !Sub "${LogsBucket.Arn}/*"
+                  - !GetAtt DataBucket.Arn
+                  - !GetAtt ModelBucket.Arn
+                  - !GetAtt LogsBucket.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:sagemaker-github-credentials-*"
+        - PolicyName: SelfStopPermission
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "sagemaker:StopNotebookInstance"
+                Resource: !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:notebook-instance/${ProjectName}-notebook-${Environment}"
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-lambda-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-*"
+                  - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-sonnet-*"
+                  - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-instant-v1"
+                  - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-v2"
+        - PolicyName: SageMakerInvokeEndpoint
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sagemaker:InvokeEndpoint
+                Resource: !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/*"
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !Sub "${ModelBucket.Arn}/*"
+                  - !Sub "${DataBucket.Arn}/*"
+
+  # ==================== SageMaker Resources ====================
+  NotebookInstanceLifecycleConfig:
+    Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
+    Properties:
+      NotebookInstanceLifecycleConfigName: !Sub "${ProjectName}-lifecycle-config"
+      OnStart:
+        - Content: !Base64 |
+            #!/bin/bash
+            set -e
+
+            # --- Environment Variables Setup (as root) ---
+            echo "Setting up environment variables from tags..."
+            NOTEBOOK_ARN=$(jq '.ResourceArn' /opt/ml/metadata/resource-metadata.json --raw-output)
+
+            # Get bucket names from tags
+            MODEL_BUCKET=$(aws sagemaker list-tags --resource-arn $NOTEBOOK_ARN | jq -r '.Tags[] | select(.Key=="ModelBucket") | .Value')
+            DATA_BUCKET=$(aws sagemaker list-tags --resource-arn $NOTEBOOK_ARN | jq -r '.Tags[] | select(.Key=="DataBucket") | .Value')
+
+            # Set environment variables system-wide
+            touch /etc/profile.d/jupyter-env.sh
+            echo "export S3_MODEL_BUCKET=$MODEL_BUCKET" >> /etc/profile.d/jupyter-env.sh
+            echo "export S3_DATA_BUCKET=$DATA_BUCKET" >> /etc/profile.d/jupyter-env.sh
+
+            echo "Environment variables set: S3_MODEL_BUCKET=$MODEL_BUCKET, S3_DATA_BUCKET=$DATA_BUCKET"
+
+            # --- User Setup (as ec2-user) ---
+            sudo -u ec2-user -i <<'EOF'
+
+            # Repository Setup
+            echo "Setting up repository..."
+            cd /home/ec2-user/SageMaker
+
+            # Get GitHub credentials from Secrets Manager
+            echo "Retrieving GitHub credentials..."
+            SECRET_VALUE=$(aws secretsmanager get-secret-value --secret-id sagemaker-github-credentials --region us-east-1 --query SecretString --output text)
+            USERNAME=$(echo $SECRET_VALUE | jq -r .username)
+            PASSWORD=$(echo $SECRET_VALUE | jq -r .password)
+
+            # Configure Git identity and authentication
+            git config --global user.name "$USERNAME"
+            git config --global user.email "$USERNAME@users.noreply.github.com"
+            git config --global init.defaultBranch main
+            git config --global credential.helper store
+            echo "https://$USERNAME:$PASSWORD@github.com" > /home/ec2-user/.git-credentials
+            chmod 600 /home/ec2-user/.git-credentials
+
+            # Clone or update repository
+            if [ ! -d "ml-pipeline" ]; then
+              echo "Cloning repository..."
+              git clone https://github.com/andrewwint/ml-pipeline.git
+            else
+              echo "Repository exists, pulling latest changes..."
+              cd ml-pipeline && git pull && cd ..
+            fi
+
+            # Configure repository with authenticated remote URL
+            cd ml-pipeline
+            git remote set-url origin "https://$USERNAME:$PASSWORD@github.com/andrewwint/ml-pipeline.git"
+            echo "Git remote configured with authentication"
+            cd ..
+
+            # Jupyter Configuration
+            mkdir -p /home/ec2-user/.jupyter
+            cat > /home/ec2-user/.jupyter/jupyter_notebook_config.py << 'JUPYTER_CONFIG'
+            c.NotebookApp.notebook_dir = '/home/ec2-user/SageMaker/ml-pipeline/notebooks'
+            c.NotebookApp.open_browser = False
+            c.NotebookApp.ip = '0.0.0.0'
+            JUPYTER_CONFIG
+
+            # Dependency Installation
+            echo "Installing dependencies..."
+            cd /home/ec2-user/SageMaker/ml-pipeline
+            source /home/ec2-user/anaconda3/bin/activate python3
+            if [ -f "requirements.txt" ]; then
+              pip install -r requirements.txt
+            fi
+            if [ -f "setup.py" ]; then
+              pip install -e .
+            fi
+            source /home/ec2-user/anaconda3/bin/deactivate
+
+            echo "User setup complete!"
+            EOF
+
+            # --- Restart Jupyter to apply environment variables ---
+            CURR_VERSION=$(cat /etc/os-release)
+            if [[ $CURR_VERSION == *"http://aws.amazon.com/amazon-linux-ami/"* ]]; then
+                initctl restart jupyter-server --no-wait
+            else
+                systemctl --no-block restart jupyter-server.service
+            fi
+
+            # --- Auto-Shutdown Configuration ---
+            echo "Setting up auto-shutdown script..."
+            cat > /home/ec2-user/auto-shutdown.sh << 'SHUTDOWN_SCRIPT'
+            #!/bin/bash
+            IDLE_TIME=1800  # 30 minutes
+
+            echo "Auto-shutdown script started. Timeout: ${IDLE_TIME}s"
+
+            INSTANCE_NAME=$(/usr/bin/jq .ResourceName /opt/ml/metadata/resource-metadata.json | tr -d '"')
+            INSTANCE_REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq .region | tr -d '"')
+
+            echo "Configured for instance: $INSTANCE_NAME in region: $INSTANCE_REGION"
+
+            while true; do
+                if pgrep -f "ipykernel_launcher" > /dev/null; then
+                    # Kernels are active, do nothing and check again later.
+                    :
+                else
+                    # No kernels active, check last UI activity time.
+                    LAST_ACTIVITY_TIME=$(jq .last_activity /home/ec2-user/.local/share/jupyter/runtime/notebook_server-*.json 2>/dev/null | tr -d '"')
+                    
+                    if [[ ! -z "$LAST_ACTIVITY_TIME" ]]; then
+                        CURRENT_TIME_UTC=$(date -u +%s)
+                        LAST_ACTIVITY_UTC=$(date -d "$LAST_ACTIVITY_TIME" +%s 2>/dev/null || echo 0)
+                        IDLE_SECONDS=$((CURRENT_TIME_UTC - LAST_ACTIVITY_UTC))
+
+                        if [ "$IDLE_SECONDS" -gt "$IDLE_TIME" ]; then
+                            echo "$(date): Stopping instance $INSTANCE_NAME due to inactivity."
+                            aws sagemaker stop-notebook-instance --notebook-instance-name "$INSTANCE_NAME" --region "$INSTANCE_REGION"
+                            break
+                        fi
+                    fi
+                fi
+                sleep 300 # Check every 5 minutes
+            done
+            SHUTDOWN_SCRIPT
+
+            chmod +x /home/ec2-user/auto-shutdown.sh
+            nohup /home/ec2-user/auto-shutdown.sh > /home/ec2-user/auto-shutdown.log 2>&1 &
+
+            echo "Auto-shutdown configured: 30 minutes idle timeout."
+            echo "Lifecycle configuration script finished."
+
+  NotebookInstance:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties:
+      NotebookInstanceName: !Sub "${ProjectName}-notebook-${Environment}"
+      InstanceType: !Ref NotebookInstanceType
+      RoleArn: !GetAtt SageMakerExecutionRole.Arn
+      LifecycleConfigName: !GetAtt NotebookInstanceLifecycleConfig.NotebookInstanceLifecycleConfigName
+      RootAccess: Enabled
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: AutoStop
+          Value: "30min-idle"
+        - Key: CostOptimization
+          Value: "enabled"
+        - Key: DataBucket
+          Value: !Ref DataBucket
+        - Key: ModelBucket
+          Value: !Ref ModelBucket
+
+  # ==================== Lambda Function ====================
+  GenAILambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-genai-insights-${Environment}"
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          def handler(event, context):
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps({'message': 'Placeholder - update with make update-lambda'})
+              }
+      MemorySize: 1024
+      Timeout: 30
+      ReservedConcurrentExecutions: 10
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: "anthropic.claude-3-haiku-20240307-v1:0"
+          BEDROCK_REGION: !Ref AWS::Region
+          MODEL_BUCKET: !Ref ModelBucket
+          LOG_LEVEL: "INFO"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ==================== API Gateway ====================
+  GenAIApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${ProjectName}-genai-api-${Environment}"
+      Description: API for generating customer insights
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  GenAIApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref GenAIApi
+      ParentId: !GetAtt GenAIApi.RootResourceId
+      PathPart: insights
+
+  GenAIApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref GenAIApi
+      ResourceId: !Ref GenAIApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenAILambdaFunction.Arn}/invocations"
+
+  GenAIApiOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref GenAIApi
+      ResourceId: !Ref GenAIApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ""
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  GenAIApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - GenAIApiMethod
+      - GenAIApiOptionsMethod
+    Properties:
+      RestApiId: !Ref GenAIApi
+      StageName: !Ref Environment
+
+  LambdaApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GenAILambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GenAIApi}/*/*"
+
+Outputs:
+  DataBucketName:
+    Description: Name of the data S3 bucket
+    Value: !Ref DataBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-DataBucket"
+
+  ModelBucketName:
+    Description: Name of the model S3 bucket
+    Value: !Ref ModelBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-ModelBucket"
+
+  LogsBucketName:
+    Description: Name of the logs S3 bucket
+    Value: !Ref LogsBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-LogsBucket"
+
+  SageMakerRoleArn:
+    Description: ARN of the SageMaker execution role
+    Value: !GetAtt SageMakerExecutionRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-SageMakerRole"
+
+  NotebookInstanceName:
+    Description: Name of the SageMaker notebook instance
+    Value: !Ref NotebookInstance
+    Export:
+      Name: !Sub "${AWS::StackName}-NotebookInstance"
+
+  GenAIApiUrl:
+    Description: URL of the GenAI API
+    Value: !Sub "https://${GenAIApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/insights"
+    Export:
+      Name: !Sub "${AWS::StackName}-GenAIApiUrl"
+
+  LambdaFunctionArn:
+    Description: ARN of the GenAI Lambda function
+    Value: !GetAtt GenAILambdaFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaFunctionArn"

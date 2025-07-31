@@ -59,28 +59,31 @@ ml-pipeline/
 ## Task Implementation
 
 ### Task 1: Customer Segmentation ML Model
+
 - **Dataset**: 1000 customers with Age, Income, Purchases, Gender features
 - **Algorithm**: K-means clustering (5 optimal clusters, 0.62 silhouette score)
 - **Deployment**: SageMaker endpoint with 150ms inference, auto-scaling 1-4 instances
 - **Public API**: Available via Lambda proxy at `/segment` endpoint
 
-*See [notebooks/README.md](notebooks/README.md) for detailed implementation and testing*
+_See [notebooks/README.md](notebooks/README.md) for detailed implementation and testing_
 
 ### Task 2: Infrastructure as Code
+
 - **CloudFormation**: Complete automation with S3 buckets, IAM roles, SageMaker notebook
 - **Security**: Least privilege access, S3 encryption, API Gateway CORS
 - **Cost Controls**: Manual notebook management, lifecycle policies
 - **One-Command**: `make deploy` provisions entire stack
 
-*See [infrastructure/cloudformation-complete.yaml](infrastructure/cloudformation-complete.yaml) for complete template*
+_See [infrastructure/cloudformation-complete.yaml](infrastructure/cloudformation-complete.yaml) for complete template_
 
 ### Task 3: GenAI Customer Insights
+
 - **Model**: AWS Bedrock Claude-3-Haiku for sentiment analysis
 - **Features**: Multi-language support, safety detection, marketing insights
 - **Performance**: 1.6-2.7s response time, 90% confidence accuracy
 - **API**: RESTful endpoint at `/insights` for customer feedback processing
 
-*See [src/README.md](src/README.md) for API documentation and usage examples*
+_See [src/README.md](src/README.md) for API documentation and usage examples_
 
 ## Prerequisites
 
@@ -305,23 +308,11 @@ _For detailed architecture and implementation planning, see [docs/architecture.m
 - Blue-green deployments for zero-downtime updates
 - Advanced auto-scaling policies based on demand patterns
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## License
-
-This project is part of the Genmab ML Engineer Assessment.
-
 ## Live Endpoints (Assessment Demonstration)
 
 ### 🔗 **Active Endpoints for Testing**
 
-**Note**: These endpoints are live for assessment demonstration. Use the commands below to get current URLs:
+**Note**: These endpoints are live for assessment demonstration. Use the commands below to get current URLs provided that you have the necessary permissions and credentials to the AWS account.
 
 ```bash
 # Get current GenAI API endpoint

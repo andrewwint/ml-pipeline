@@ -333,7 +333,3 @@ For security and cost management, specific endpoint URLs will be provided separa
 - **Customer Segmentation**: Live K-means model with real-time predictions
 - **GenAI Insights**: Customer feedback analysis with sentiment and safety detection
 - **Complete Integration**: End-to-end ML pipeline with monitoring
-
-## Contact
-
-For questions or clarifications about this implementation, please reach out to the assessment team.

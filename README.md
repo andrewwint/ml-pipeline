@@ -285,7 +285,7 @@ make stop-notebook    # Stop when not in use to save costs
 make start-notebook   # Start when needed
 ```
 
-**Auto-shutdown**: The notebook automatically stops after 30 minutes of inactivity to prevent unnecessary charges.
+**Cost management**: Remember to stop the notebook when not in use to prevent unnecessary charges.
 
 ### 5. Test the ML Pipeline
 
@@ -325,8 +325,7 @@ make clean           # Clean local files
 
 ### **Implemented Cost Optimizations**
 
-- **SageMaker Notebook**: Auto-shutdown after 30 minutes of inactivity
-
+- **SageMaker Notebook**: Manual stop/start controls for cost management
 - **S3**: Lifecycle policies for log retention (30 days)
 - **Resource Tagging**: Cost tracking by project and environment
 
@@ -397,7 +396,7 @@ make force-destroy
 - **One-command Deployment**: `make deploy` provisions entire stack
 - **Resource Management**: 15+ Makefile targets for operations
 - **Security**: Least privilege IAM, encryption at rest/transit
-- **Cost Optimization**: Auto-shutdown, lifecycle policies
+- **Cost Optimization**: Manual controls, lifecycle policies
 
 #### **Task 3: GenAI Integration**
 

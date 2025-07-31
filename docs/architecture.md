@@ -73,6 +73,7 @@ The ML Pipeline is designed as a cloud-native, serverless architecture leveragin
   - Pre-installed ML libraries
   - Direct S3 access
   - Git integration
+  - Manual start/stop for cost control
 
 **K-means Endpoint**:
 
@@ -238,7 +239,7 @@ s3://ml-pipeline-logs-{account-id}/
 
 ### Compute Optimization
 
-- **SageMaker Notebook**: Auto-shutdown after 30 minutes inactivity
+- **SageMaker Notebook**: Manual start/stop controls for cost management
 - **Resource Tagging**: Basic cost tracking tags
 
 ### Storage Optimization

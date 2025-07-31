@@ -35,10 +35,10 @@ The `NotebookInstanceLifecycleConfig` in CloudFormation handles:
    - Installs project dependencies from requirements.txt
    - Configures notebook server settings
 
-4. **Auto-Shutdown**
-   - Monitors notebook activity every 5 minutes
-   - Automatically stops instance after 30 minutes of inactivity
-   - Prevents unnecessary costs from idle instances
+4. **Jupyter Configuration**
+   - Opens directly in `/ml-pipeline/notebooks/` directory
+   - Installs project dependencies from requirements.txt
+   - Configures notebook server settings
 
 ### Two-Way Git Integration
 
@@ -85,7 +85,6 @@ make update-sagemaker-proxy # Update SageMaker API proxy
 
 ## Cost Optimization
 
-- **Auto-shutdown**: 30-minute idle timeout
-- **Manual control**: Use `make stop-notebook` when not in use
+- **Manual control**: Use `make stop-notebook` when not in use to save costs
 - **Endpoint costs**: ~$0.10/hour when running
 - **Notebook costs**: ~$0.05/hour when running

@@ -2,24 +2,24 @@
 
 ## Overview
 
-This GenAI-powered API processes free-form customer text to extract valuable insights for marketing and business intelligence. The system validates input, performs sentiment analysis, and mines unmet customer needs to drive strategic decision-making.
+This API processes customer feedback text to extract marketing insights. It performs sentiment analysis, identifies unmet needs, and detects safety concerns using AWS Bedrock Claude-3-Haiku.
 
 ## Primary Use Case: Marketing Intelligence
 
-**Objective**: Transform unstructured customer feedback into actionable marketing insights
+**Objective**: Process customer feedback for marketing insights
 
 ### Core Capabilities
 
-1. **Sentiment Analysis** - Understand customer emotional state and satisfaction levels
-2. **Insight Mining** - Identify unmet needs, pain points, and opportunities
-3. **Multi-language Support** - Process feedback in English, Spanish, and French
-4. **Content Validation** - Ensure input quality and filter inappropriate content
+1. **Sentiment Analysis** - Classify customer sentiment and satisfaction
+2. **Insight Mining** - Extract unmet needs and pain points
+3. **Multi-language Support** - English, Spanish, and French
+4. **Safety Detection** - Identify potential product safety concerns
 
 ### Value-Added Features
 
-- **Adverse Event Detection** - Identify potential product safety concerns
-- **Recommendation Engine** - Generate actionable next steps
-- **Real-time Processing** - Sub-3 second response times via AWS Bedrock
+- **Adverse Event Detection** - Local safety concern detection
+- **Recommendations** - Generate suggested actions
+- **Response Time** - 1.6-2.7s via AWS Bedrock
 
 ## API Endpoint
 
@@ -164,17 +164,17 @@ curl -X POST https://api-url/insights \
 
 ## Business Value
 
-### ROI Drivers
-- **Faster Insights**: Reduce manual analysis time by 90%
-- **Better Decisions**: Data-driven product and marketing strategies
-- **Customer Satisfaction**: Proactive issue identification and resolution
-- **Market Advantage**: Real-time competitive intelligence
+### Use Cases
+- **Product Development**: Feature prioritization based on feedback
+- **Marketing**: Sentiment-based customer segmentation
+- **Support**: Proactive issue identification
+- **Analysis**: Automated feedback processing
 
-### Success Metrics
-- **Customer Satisfaction Score**: Track sentiment trends over time
-- **Feature Adoption**: Monitor impact of addressing unmet needs
-- **Support Ticket Reduction**: Measure proactive issue resolution
-- **Revenue Impact**: Correlate insights with business outcomes
+### Metrics
+- **Sentiment Trends**: Track customer satisfaction over time
+- **Feature Requests**: Identify most requested capabilities
+- **Issue Detection**: Monitor safety concerns and problems
+- **Response Analysis**: Process feedback at scale
 
 ## Deployment Commands
 
@@ -233,4 +233,4 @@ make stop-notebook   # Stop SageMaker notebook instance
 4. **Integrate Systems**: Connect to CRM, support tools, and analytics platforms
 5. **Monitor Performance**: Track metrics and optimize based on usage patterns
 
-This API transforms raw customer feedback into strategic business intelligence, enabling data-driven decisions that improve customer satisfaction and drive growth.
+This API processes customer feedback to provide sentiment analysis, unmet needs identification, and safety concern detection for marketing and product teams.

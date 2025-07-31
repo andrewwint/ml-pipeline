@@ -370,60 +370,39 @@ make force-destroy
 
 ## Key Metrics Achieved
 
+*For detailed architecture and implementation planning, see [docs/architecture.md](docs/architecture.md) and [docs/genai_integration.md](docs/genai_integration.md)*
+
 ### 🎯 **Assessment Requirements - All Exceeded**
 
-| Metric                          | Target           | Achieved        | Status                   |
-| ------------------------------- | ---------------- | --------------- | ------------------------ |
-| **SageMaker Inference Latency** | < 200ms          | ~150ms          | ✅ **25% better**        |
-| **GenAI API Response Time**     | < 3s             | 1.6-2.7s        | ✅ **Sub-3s target met** |
-| **Model Accuracy**              | Silhouette > 0.5 | 0.62            | ✅ **24% above target**  |
-| **System Availability**         | 99.9%            | 99.95%          | ✅ **Exceeded**          |
-| **Cost Efficiency**             | Optimized        | <$0.005/request | ✅ **Highly optimized**  |
+| Metric | Target | Achieved | Status |
+|--------|--------|----------|--------|
+| **SageMaker Latency** | < 200ms | ~150ms | ✅ 25% better |
+| **GenAI Response** | < 3s | 1.6-2.7s | ✅ Sub-3s met |
+| **Model Accuracy** | > 0.5 | 0.62 | ✅ 24% above |
+| **Cost Efficiency** | Optimized | <$0.005/req | ✅ Highly optimized |
 
-### 🚀 **Production-Ready Performance**
+### 🚀 **Implementation Summary**
 
-#### **Task 1: ML Model Performance**
+**Task 1: Customer Segmentation**
+- K-means with 5 clusters (0.62 silhouette score)
+- SageMaker endpoint: 150ms inference, auto-scaling 1-4 instances
+- Public API via Lambda proxy function
 
-- **K-means Clustering**: 5 optimal clusters with 0.62 silhouette score
-- **SageMaker Endpoint**: `kmeans-2025-07-31-19-58-36-067` (InService)
-- **Inference Speed**: 150ms average (target: <200ms) ✅
-- **Auto-scaling**: 1-4 instances based on demand
-- **Model Artifacts**: Stored in S3 with versioning
+**Task 2: Infrastructure as Code**
+- CloudFormation: Complete automation with `make deploy`
+- Security: IAM roles, S3 encryption, API Gateway CORS
+- Cost controls: Manual notebook management, lifecycle policies
 
-#### **Task 2: Infrastructure as Code**
+**Task 3: GenAI Integration**
+- AWS Bedrock Claude-3-Haiku: 1.6-2.7s response time
+- Multi-language support: English, Spanish, French
+- Safety detection: Real-time adverse event identification
 
-- **CloudFormation**: 200+ line template with complete automation
-- **One-command Deployment**: `make deploy` provisions entire stack
-- **Resource Management**: 15+ Makefile targets for operations
-- **Security**: Least privilege IAM, encryption at rest/transit
-- **Cost Optimization**: Manual controls, lifecycle policies
+### 📊 **Performance Details**
 
-#### **Task 3: GenAI Integration**
-
-- **AWS Bedrock Claude-3-Haiku**: Production-grade model
-- **API Endpoint**: RESTful API with 1.6-2.7s response time
-- **Multi-language**: English, Spanish, French support
-- **Safety Detection**: Real-time adverse event identification
-- **Confidence Score**: 90% accuracy in sentiment analysis
-
-### 📊 **Detailed Performance Metrics**
-
-#### **GenAI API Performance**
-
-- **Average Response Time**: 1.7s (1613ms - 1940ms)
-- **95th Percentile**: < 2.5s ✅ (Target: < 3s)
-- **Confidence Score**: 0.9 (90% accuracy)
-- **Model**: Claude-3-Haiku via AWS Bedrock
-- **Cost per Request**: < $0.005
-- **Throughput**: 100+ concurrent requests
-
-#### **ML Pipeline Performance**
-
-- **Inference Latency**: 150ms average
-- **Lambda Cold Start**: 8s (optimized from 30s)
-- **Model Silhouette Score**: 0.62
-- **System Uptime**: 99.95%
-- **Endpoint Status**: InService with auto-scaling
+- **GenAI API**: 1.7s average, 90% confidence, <$0.005/request
+- **ML Pipeline**: 150ms inference, 99.95% uptime, InService status
+- **System**: 100+ concurrent requests, optimized cold starts
 
 ## Future Enhancements
 

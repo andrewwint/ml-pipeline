@@ -9,7 +9,7 @@ This project implements a comprehensive ML pipeline for customer segmentation us
 ```bash
 make help             # Show all available commands
 make install          # Install dependencies
-make deploy           # Deploy complete infrastructure (IaC)
+make deploy           # Deploy complete infrastructure (IaC) - KEY COMMAND
 make update-lambda    # Update Lambda function code only
 make test-api         # Test Customer Insights API
 make test-sagemaker   # Test SageMaker K-means endpoint
@@ -167,158 +167,106 @@ ml-pipeline/
 
 ## Setup GitHub Integration
 
-### 1. Create GitHub Personal Access Token
+### Prerequisites Checklist
 
-1. Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-2. Click "Generate new token (classic)"
-3. Set expiration and select scopes:
-   - ✅ `repo` (Full control of private repositories)
-   - ✅ `workflow` (Update GitHub Action workflows)
-4. Copy the generated token (starts with `ghp_`)
+- [ ] **Create GitHub Personal Access Token**
 
-### 2. Store Credentials in AWS Secrets Manager
+  - Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+  - Generate token with `repo` and `workflow` scopes
+  - Copy token (starts with `ghp_`)
 
-```bash
-# Create the secret with your GitHub credentials
-aws secretsmanager create-secret \
-  --name "sagemaker-github-credentials" \
-  --description "GitHub credentials for SageMaker" \
-  --secret-string '{"username":"your-github-username","password":"ghp_your_token_here"}'
+- [ ] **Store in AWS Secrets Manager**
 
-# Verify the secret was created
-aws secretsmanager describe-secret --secret-id sagemaker-github-credentials
-```
+  ```bash
+  aws secretsmanager create-secret \
+    --name "sagemaker-github-credentials" \
+    --secret-string '{"username":"your-username","password":"ghp_your_token"}'
+  ```
 
-### 3. Update Secret (if needed)
+  **Note**: The secret must be named `sagemaker-github-credentials` (required by NotebookInstanceLifecycleConfig)
 
-```bash
-# Update existing secret with new token
-aws secretsmanager update-secret \
-  --secret-id sagemaker-github-credentials \
-  --secret-string '{"username":"your-github-username","password":"ghp_new_token_here"}'
-```
+  **Important**: The CloudFormation template currently uses a hardcoded repository URL (`andrewwint/ml-pipeline`). For your own fork, update the GitHub URLs in `infrastructure/cloudformation-complete.yaml` or this will be made dynamic in a future version.
 
 ## Quick Start
 
-### 1. Environment Setup
+### Deployment Checklist
+
+- [ ] **Environment Setup**
+
+  ```bash
+  git clone <repository-url> && cd ml-pipeline
+  python -m venv .venv && source .venv/bin/activate
+  ```
+
+- [ ] **AWS Configuration**
+
+  ```bash
+  aws configure  # Set up credentials
+  ```
+
+- [ ] **Deploy Infrastructure**
+
+  ```bash
+  make install && make deploy  # One-command deployment
+  ```
+
+  **Expected Output:**
+
+  ```
+  ✅ Deployment complete!
+  Getting stack outputs...
+
+  +-----------------------+--------------------------------------------------------------------------+
+  |  ModelBucketName      |  ml-pipeline-models-123456789-us-east-1                                  |
+  |  DataBucketName       |  ml-pipeline-data-123456789-us-east-1                                    |
+  |  GenAIApiUrl          |  https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/dev/insights     |
+  |  LogsBucketName       |  ml-pipeline-logs-123456789-us-east-1                                    |
+  |  SageMakerApiUrl      |  https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/dev/segment      |
+  |  NotebookInstanceName |  ml-pipeline-notebook-dev                                                |
+  +-----------------------+--------------------------------------------------------------------------+
+  ```
+
+- [ ] **Start Services**
+
+  ```bash
+  make start-notebook  # Start SageMaker notebook
+  make status          # Verify deployment
+  ```
+
+- [ ] **Test APIs**
+  ```bash
+  make test-api        # Test GenAI endpoint
+  make test-sagemaker  # Test ML endpoint
+  ```
+
+### Working with SageMaker Notebooks
+
+- [ ] **Access Notebook**
+
+  ```bash
+  make get-notebook-url  # Get Jupyter URL
+  ```
+
+  Navigate to `ml-pipeline/notebooks/` in Jupyter
+
+- [ ] **Git Integration** (automatic)
+
+  - Credentials retrieved from AWS Secrets Manager
+  - Two-way sync between SageMaker and GitHub
+  - No manual configuration required
+
+- [ ] **Cost Management**
+  ```bash
+  make stop-notebook   # Stop when not in use
+  make start-notebook  # Start when needed
+  ```
+
+### Common Operations
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd ml-pipeline
-
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
-
-### 2. Configure AWS & Environment
-
-```bash
-# Set up AWS credentials
-aws configure
-```
-
-### 3. Deploy Infrastructure
-
-```bash
-# Deploy infrastructure
-make install        # Install dependencies
-make setup-aws      # Configure AWS credentials
-make deploy         # Deploy CloudFormation stack
-
-# Start notebook and get access
-make start-notebook # Start SageMaker notebook instance
-make get-notebook-url # Get SageMaker notebook URL
-
-# Check deployment
-make status         # Check stack status
-make get-api-url    # Get GenAI API endpoint
-```
-
-### 4. Working with SageMaker Notebooks
-
-After starting the notebook instance:
-
-```bash
-# Get the Jupyter URL
-make get-notebook-url
-```
-
-**Important**: In Jupyter, navigate to `ml-pipeline/notebooks/` to work with notebooks that are connected to git.
-
-**Git workflow from SageMaker**:
-
-```bash
-# In SageMaker terminal:
-cd /home/ec2-user/SageMaker/ml-pipeline
-git add notebooks/
-git commit -m "Update notebooks from SageMaker"
-git push
-
-# Then locally:
-git pull
-```
-
-**Note**: Git is automatically configured during notebook startup:
-
-- Retrieves credentials from AWS Secrets Manager (`sagemaker-github-credentials`)
-- Configures authenticated Git remote for seamless push/pull
-- Sets up user identity from the stored GitHub username
-- Jupyter opens directly in the `notebooks/` directory
-- No manual Git configuration required!
-
-**Prerequisites**: Ensure you have created the GitHub PAT and AWS secret:
-
-```bash
-# Create AWS secret with your GitHub credentials
-aws secretsmanager create-secret \
-  --name "sagemaker-github-credentials" \
-  --description "GitHub credentials for SageMaker" \
-  --secret-string '{"username":"your-github-username","password":"ghp_your_token_here"}'
-```
-
-**Cost management**:
-
-```bash
-make stop-notebook    # Stop when not in use to save costs
-make start-notebook   # Start when needed
-```
-
-**Cost management**: Remember to stop the notebook when not in use to prevent unnecessary charges.
-
-### 5. Test the ML Pipeline
-
-```bash
-# Test both components
-make test-api         # Test GenAI Customer Insights API
-make test-sagemaker   # Test SageMaker K-means endpoint
-
-# Get endpoint information
-make get-api-url      # Get GenAI API endpoint URL
-make get-endpoints    # List SageMaker model endpoints
-
-# Advanced testing with different scenarios
-API_URL=$(make get-api-url)
-python scripts/test_bedrock_api.py --api-url $API_URL --test-case safety_concern
-python scripts/test_sagemaker_endpoint.py --endpoint-name kmeans-2025-07-31-19-58-36-067
-
-# Check deployment status
-make status           # Check CloudFormation stack status
-```
-
-### 6. Common Operations
-
-```bash
-# View all available commands
-make help
-
-# Update Lambda code (for development)
-make update-lambda    # Deploy latest code changes
-
-# Clean up resources
-make destroy         # Remove all AWS resources
-make clean           # Clean local files
+make help            # Show all commands
+make update-lambda   # Update code
+make destroy         # Clean up resources
 ```
 
 ## Architecture Features
@@ -370,30 +318,33 @@ make force-destroy
 
 ## Key Metrics Achieved
 
-*For detailed architecture and implementation planning, see [docs/architecture.md](docs/architecture.md) and [docs/genai_integration.md](docs/genai_integration.md)*
+_For detailed architecture and implementation planning, see [docs/architecture.md](docs/architecture.md) and [docs/genai_integration.md](docs/genai_integration.md)_
 
 ### 🎯 **Assessment Requirements - All Exceeded**
 
-| Metric | Target | Achieved | Status |
-|--------|--------|----------|--------|
-| **SageMaker Latency** | < 200ms | ~150ms | ✅ 25% better |
-| **GenAI Response** | < 3s | 1.6-2.7s | ✅ Sub-3s met |
-| **Model Accuracy** | > 0.5 | 0.62 | ✅ 24% above |
-| **Cost Efficiency** | Optimized | <$0.005/req | ✅ Highly optimized |
+| Metric                | Target    | Achieved    | Status              |
+| --------------------- | --------- | ----------- | ------------------- |
+| **SageMaker Latency** | < 200ms   | ~150ms      | ✅ 25% better       |
+| **GenAI Response**    | < 3s      | 1.6-2.7s    | ✅ Sub-3s met       |
+| **Model Accuracy**    | > 0.5     | 0.62        | ✅ 24% above        |
+| **Cost Efficiency**   | Optimized | <$0.005/req | ✅ Highly optimized |
 
 ### 🚀 **Implementation Summary**
 
 **Task 1: Customer Segmentation**
+
 - K-means with 5 clusters (0.62 silhouette score)
 - SageMaker endpoint: 150ms inference, auto-scaling 1-4 instances
 - Public API via Lambda proxy function
 
 **Task 2: Infrastructure as Code**
+
 - CloudFormation: Complete automation with `make deploy`
 - Security: IAM roles, S3 encryption, API Gateway CORS
 - Cost controls: Manual notebook management, lifecycle policies
 
 **Task 3: GenAI Integration**
+
 - AWS Bedrock Claude-3-Haiku: 1.6-2.7s response time
 - Multi-language support: English, Spanish, French
 - Safety detection: Real-time adverse event identification

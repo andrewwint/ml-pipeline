@@ -164,6 +164,31 @@ make test-sagemaker
 make get-endpoints
 ```
 
+## Future Improvements
+
+### Data Preprocessing Architecture
+
+**Current Limitation**: The deployed SageMaker K-means endpoint expects pre-scaled data (normalized features). Users must manually transform raw values before calling the API.
+
+**Proposed Solution**: Add a preprocessing layer using Lambda functions:
+
+1. **Client sends raw data**:
+   ```json
+   {"age": 20, "income": 60000, "purchases": 10}
+   ```
+
+2. **Lambda preprocessing**:
+   - Load saved `StandardScaler` from S3 (fitted during training)
+   - Transform raw data to scaled format
+   - Call SageMaker endpoint with scaled data
+
+3. **Enhanced user experience**:
+   - No manual scaling required
+   - Business-friendly input format
+   - Separation of concerns (Lambda handles preprocessing, SageMaker handles inference)
+
+**Implementation**: Store the fitted scaler object in S3 during training, then load it in a Lambda function that sits between API Gateway and the SageMaker endpoint.
+
 ## Cost Optimization
 
 - **Manual control**: Use `make stop-notebook` when not in use to save costs

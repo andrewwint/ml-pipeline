@@ -87,6 +87,85 @@ _See [infrastructure/cloudformation-complete.yaml](infrastructure/cloudformation
 
 _See [src/README.md](src/README.md) for API documentation and usage examples_
 
+---
+
+## RESTful Endpoint Example Usage
+
+### Test Cluster Segmentation API proxy for SageMaker Inference Endpoint
+
+```bash
+curl -X POST https://<api_gateway_id>.execute-api.us-east-1.amazonaws.com/dev/segment \
+  -H "Content-Type: application/json" \
+  -d '{
+    "features": [
+      [-1.14, -1.13, 0.68],
+      [-1.67, -0.81, -0.22],
+      [1.10, 0.45, -0.29]
+    ]
+  }'
+```
+
+Response:
+
+```json
+{
+  "predictions": [
+    { "closest_cluster": 4.0, "distance_to_cluster": 0.919500470161438 },
+    { "closest_cluster": 4.0, "distance_to_cluster": 1.370941400527954 },
+    { "closest_cluster": 2.0, "distance_to_cluster": 0.9776126742362976 }
+  ],
+  "endpoint": "kmeans-2025-07-31-19-58-36-067",
+  "model": "K-means Customer Segmentation",
+  "features_processed": 3
+}
+```
+
+### Test GenAI API
+
+```bash
+curl -X POST https://<api_gateway_id>.execute-api.us-east-1.amazonaws.com/dev/insights \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "The device got very hot and burned my hand during use. This is dangerous!",
+    "source": "customer_complaint",
+    "category": "safety_issue"
+  }'
+```
+
+Response:
+
+```json
+{
+  "sentiment_score": -0.8,
+  "sentiment_label": "negative",
+  "language_detected": "english",
+  "insights": {
+    "unmet_needs": ["product safety", "device reliability"],
+    "pain_points": ["device overheating", "burn injury"],
+    "positive_aspects": []
+  },
+  "recommendations": [
+    "prioritize product safety testing",
+    "improve device cooling mechanisms",
+    "add clear safety warnings"
+  ],
+  "adverse_events": ["burn"],
+  "safety_concerns": [
+    {
+      "event": "burn",
+      "severity": "mild",
+      "confidence": 0.8,
+      "safety_category": "Thermal Injury",
+      "detected_phrase": "The device got very hot and burned my hand during use. This is..."
+    }
+  ],
+  "processing_time_ms": 1520,
+  "confidence": 0.95,
+  "model": "claude-3-haiku",
+  "status": "success"
+}
+```
+
 ## Prerequisites
 
 - AWS Account with appropriate permissions

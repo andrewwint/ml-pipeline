@@ -40,11 +40,6 @@ The `NotebookInstanceLifecycleConfig` in CloudFormation handles:
    - Installs project dependencies from requirements.txt
    - Configures notebook server settings
 
-4. **Jupyter Configuration**
-   - Opens directly in `/ml-pipeline/notebooks/` directory
-   - Installs project dependencies from requirements.txt
-   - Configures notebook server settings
-
 ### Two-Way Git Integration
 
 **From SageMaker to GitHub:**
@@ -173,11 +168,13 @@ make get-endpoints
 **Proposed Solution**: Add a preprocessing layer using Lambda functions:
 
 1. **Client sends raw data**:
+
    ```json
-   {"age": 20, "income": 60000, "purchases": 10}
+   { "age": 20, "income": 60000, "purchases": 10 }
    ```
 
 2. **Lambda preprocessing**:
+
    - Load saved `StandardScaler` from S3 (fitted during training)
    - Transform raw data to scaled format
    - Call SageMaker endpoint with scaled data

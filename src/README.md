@@ -110,16 +110,31 @@ POST /insights
 - **Data Encryption**: All data encrypted in transit and at rest
 - **Audit Logging**: Complete request/response tracking
 
-## File Structure
+## Package Structure
 
 ```
-src/genai/
-├── genai_insights.py     # Main GenAI Lambda handler
-├── sagemaker_proxy.py    # SageMaker endpoint proxy Lambda
-├── prompts.py           # Marketing-focused prompt templates
-├── adverse_events.py    # Safety concern detection
-├── utils.py            # Input validation and utilities
-└── requirements.txt     # Python dependencies
+src/
+├── __init__.py          # Package version and metadata
+└── genai/
+    ├── __init__.py      # Module exports and API surface
+    ├── genai_insights.py     # Main GenAI Lambda handler
+    ├── sagemaker_proxy.py    # SageMaker endpoint proxy Lambda
+    ├── prompts.py           # Marketing-focused prompt templates
+    ├── adverse_events.py    # Safety concern detection
+    ├── utils.py            # Input validation and utilities
+    └── requirements.txt     # Python dependencies
+```
+
+### Python Package Installation
+
+```bash
+# Install as editable package (for development)
+pip install -e .
+
+# Import modules after installation
+from genai import genai_handler, sagemaker_handler
+from genai.utils import validate_input
+from genai.adverse_events import detect_adverse_events
 ```
 
 ## Usage Examples
@@ -228,12 +243,38 @@ make stop-notebook   # Stop SageMaker notebook instance
 - **Safety Concerns**: Real-time detection
 - **Recommendation Engine**: Integrated in main inference
 
+## Development
+
+### Package Installation
+```bash
+# Install package in development mode
+pip install -e .
+
+# Verify installation
+python -c "import genai; print('Package installed successfully')"
+```
+
+### Module Usage
+```python
+# Import Lambda handlers
+from genai import genai_handler, sagemaker_handler
+
+# Import utilities
+from genai.utils import validate_input
+from genai.adverse_events import detect_adverse_events
+from genai.prompts import SENTIMENT_PROMPT
+
+# Use in SageMaker notebooks or local development
+result = genai_handler(event, context)
+```
+
 ## Getting Started
 
 1. **Deploy Infrastructure**: `make deploy`
-2. **Test API**: `make test-api`
-3. **Get Endpoint**: `make get-api-url`
-4. **Integrate Systems**: Connect to CRM, support tools, and analytics platforms
-5. **Monitor Performance**: Track metrics and optimize based on usage patterns
+2. **Install Package**: `pip install -e .`
+3. **Test API**: `make test-api`
+4. **Get Endpoint**: `make get-api-url`
+5. **Integrate Systems**: Connect to CRM, support tools, and analytics platforms
+6. **Monitor Performance**: Track metrics and optimize based on usage patterns
 
 This API processes customer feedback to provide sentiment analysis, unmet needs identification, and safety concern detection for marketing and product teams.

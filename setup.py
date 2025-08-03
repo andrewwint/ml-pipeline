@@ -14,10 +14,5 @@ setup(
         "seaborn>=0.12.0",
         "requests>=2.31.0",
     ],
-    entry_points={
-        "console_scripts": [
-            "train-model=training.train:main",
-            "deploy-model=scripts.deploy_model:main",
-        ],
-    },
+
 )

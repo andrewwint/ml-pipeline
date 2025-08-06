@@ -26,6 +26,21 @@ Parameters:
     Default: ml.t3.medium
     Description: Instance type for notebook
 
+  # EndpointMinCapacity:
+  #   Type: Number
+  #   Default: 1
+  #   Description: Minimum number of instances for SageMaker endpoint auto-scaling
+
+  # EndpointMaxCapacity:
+  #   Type: Number
+  #   Default: 4
+  #   Description: Maximum number of instances for SageMaker endpoint auto-scaling
+
+  # EndpointTargetInvocations:
+  #   Type: Number
+  #   Default: 100
+  #   Description: Target invocations per instance per minute for auto-scaling
+
 Resources:
   # ==================== S3 Buckets ====================
   DataBucket:
@@ -155,6 +170,28 @@ Resources:
               - Effect: Allow
                 Action: "sagemaker:StopNotebookInstance"
                 Resource: !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:notebook-instance/${ProjectName}-notebook-${Environment}"
+        - PolicyName: AutoScalingPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "application-autoscaling:RegisterScalableTarget"
+                  - "application-autoscaling:DeregisterScalableTarget"
+                  - "application-autoscaling:PutScalingPolicy"
+                  - "application-autoscaling:DeleteScalingPolicy"
+                  - "application-autoscaling:DescribeScalableTargets"
+                  - "application-autoscaling:DescribeScalingPolicies"
+                  - "cloudwatch:PutMetricAlarm"
+                  - "cloudwatch:DeleteAlarms"
+                  - "cloudwatch:DescribeAlarms"
+                Resource: "*"
+              - Effect: Allow
+                Action: "iam:CreateServiceLinkedRole"
+                Resource: "arn:aws:iam::*:role/aws-service-role/sagemaker.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_SageMakerEndpoint"
+                Condition:
+                  StringLike:
+                    "iam:AWSServiceName": "sagemaker.application-autoscaling.amazonaws.com"
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -191,7 +228,7 @@ Resources:
                 Action:
                   - sagemaker:InvokeEndpoint
                   - sagemaker:ListEndpoints
-                Resource: 
+                Resource:
                   - !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/*"
                   - "*"
         - PolicyName: S3Access
@@ -407,7 +444,7 @@ Resources:
           import boto3
           import csv
           import io
-          
+
           def handler(event, context):
               try:
                   # Parse request body

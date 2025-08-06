@@ -186,6 +186,69 @@ make get-endpoints
 
 **Implementation**: Store the fitted scaler object in S3 during training, then load it in a Lambda function that sits between API Gateway and the SageMaker endpoint.
 
+### Advanced Auto-scaling Configuration
+
+**Current Status**: Basic auto-scaling (1-4 instances) configured manually in notebook.
+
+**Enhancement**: Programmatic auto-scaling with CloudFormation integration:
+
+**CloudFormation Updates** (already implemented):
+- Added auto-scaling IAM permissions to SageMaker execution role
+- Added configurable parameters: `EndpointMinCapacity`, `EndpointMaxCapacity`, `EndpointTargetInvocations`
+- Enabled Application Auto Scaling service-linked role creation
+
+**Notebook Implementation**:
+```python
+# Add to CustomerSegmentation.ipynb after endpoint creation
+import boto3
+
+autoscaling = boto3.client('application-autoscaling')
+sagemaker_role_arn = "<from-cloudformation-output>"
+
+# Register scalable target
+autoscaling.register_scalable_target(
+    ServiceNamespace='sagemaker',
+    ResourceId=f'endpoint/{endpoint_name}/variant/AllTraffic',
+    ScalableDimension='sagemaker:variant:DesiredInstanceCount',
+    MinCapacity=1,  # From CloudFormation parameter
+    MaxCapacity=4,  # From CloudFormation parameter
+    RoleARN=sagemaker_role_arn
+)
+
+# Create target tracking scaling policy
+autoscaling.put_scaling_policy(
+    PolicyName=f'{endpoint_name}-scaling-policy',
+    ServiceNamespace='sagemaker',
+    ResourceId=f'endpoint/{endpoint_name}/variant/AllTraffic',
+    ScalableDimension='sagemaker:variant:DesiredInstanceCount',
+    PolicyType='TargetTrackingScaling',
+    TargetTrackingScalingPolicyConfiguration={
+        'TargetValue': 100.0,  # Invocations per instance per minute
+        'PredefinedMetricSpecification': {
+            'PredefinedMetricType': 'SageMakerVariantInvocationsPerInstance'
+        },
+        'ScaleOutCooldown': 60,   # Scale out faster
+        'ScaleInCooldown': 300    # Scale in slower to avoid thrashing
+    }
+)
+```
+
+**Benefits**:
+- **Cost Efficiency**: Scale down during low traffic periods
+- **Performance**: Scale up automatically during high demand
+- **Reliability**: Maintain service availability under load
+- **Monitoring**: CloudWatch metrics for scaling decisions
+
+**Deployment Parameters**:
+```bash
+# Deploy with custom auto-scaling settings
+aws cloudformation deploy \
+  --parameter-overrides \
+    EndpointMinCapacity=2 \
+    EndpointMaxCapacity=8 \
+    EndpointTargetInvocations=150
+```
+
 ## Cost Optimization
 
 - **Manual control**: Use `make stop-notebook` when not in use to save costs

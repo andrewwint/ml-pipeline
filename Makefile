@@ -5,14 +5,18 @@ help:
 	@echo "Available targets:"
 	@echo "  install          - Install dependencies"
 	@echo "  validate         - Validate CloudFormation template"
-	@echo "  deploy           - Deploy complete infrastructure (IaC)"
+	@echo "  deploy           - Deploy complete infrastructure with auto-scaling (IaC)"
+	@echo "  deploy-dev       - Deploy with minimal scaling (1-2 instances)"
+	@echo "  deploy-prod      - Deploy with production scaling (2-8 instances)"
+	@echo "  deploy-custom    - Deploy with custom scaling parameters"
 	@echo "  update-lambda    - Update Lambda function code only"
 	@echo "  update-sagemaker-proxy - Update SageMaker proxy Lambda"
 	@echo "  test-api         - Test Customer Insights API"
 	@echo "  test-sagemaker   - Test SageMaker K-means endpoint"
 	@echo "  get-api-url      - Get GenAI API endpoint"
 	@echo "  get-sagemaker-api-url - Get SageMaker API endpoint"
-	@echo "  get-endpoints    - List SageMaker model endpoints"
+	@echo "  get-endpoints    - List SageMaker model endpoints with scaling info"
+	@echo "  get-scaling      - Show auto-scaling configuration and metrics"
 	@echo "  get-model-artifacts - Show model artifacts in S3"
 	@echo "  status           - Check deployment status"
 	@echo "  start-notebook   - Start SageMaker notebook instance"
@@ -33,9 +37,9 @@ validate:
 		--template-body file://infrastructure/cloudformation-complete.yaml
 	@echo "✅ Template validation successful!"
 
-# Deploy complete infrastructure (IaC)
+# Deploy complete infrastructure with auto-scaling (IaC)
 deploy: validate
-	@echo "Deploying complete infrastructure with CloudFormation..."
+	@echo "Deploying complete infrastructure with auto-scaling..."
 	aws cloudformation deploy \
 		--template-file infrastructure/cloudformation-complete.yaml \
 		--stack-name ml-pipeline-stack \
@@ -47,6 +51,63 @@ deploy: validate
 		--stack-name ml-pipeline-stack \
 		--query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
 		--output table
+
+# Deploy with development scaling (minimal resources)
+deploy-dev: validate
+	@echo "Deploying with development auto-scaling configuration..."
+	aws cloudformation deploy \
+		--template-file infrastructure/cloudformation-complete.yaml \
+		--stack-name ml-pipeline-stack \
+		--parameter-overrides \
+			EndpointMinCapacity=1 \
+			EndpointMaxCapacity=2 \
+			EndpointTargetInvocations=50 \
+			SageMakerInstanceType=ml.t3.medium \
+		--capabilities CAPABILITY_NAMED_IAM
+	@echo "Updating Lambda function with latest code..."
+	@$(MAKE) update-lambda
+	@echo "✅ Development deployment complete with 1-2 instance auto-scaling!"
+
+# Deploy with production scaling (high availability)
+deploy-prod: validate
+	@echo "Deploying with production auto-scaling configuration..."
+	aws cloudformation deploy \
+		--template-file infrastructure/cloudformation-complete.yaml \
+		--stack-name ml-pipeline-stack \
+		--parameter-overrides \
+			EndpointMinCapacity=2 \
+			EndpointMaxCapacity=8 \
+			EndpointTargetInvocations=150 \
+			SageMakerInstanceType=ml.m5.large \
+		--capabilities CAPABILITY_NAMED_IAM
+	@echo "Updating Lambda function with latest code..."
+	@$(MAKE) update-lambda
+	@echo "✅ Production deployment complete with 2-8 instance auto-scaling!"
+
+# Deploy with custom scaling parameters (interactive)
+deploy-custom: validate
+	@echo "Deploy with custom auto-scaling parameters:"
+	@read -p "Minimum instances (default 1): " MIN_CAP; \
+	read -p "Maximum instances (default 4): " MAX_CAP; \
+	read -p "Target invocations per instance (default 100): " TARGET_INV; \
+	read -p "Instance type (default ml.m5.large): " INSTANCE_TYPE; \
+	MIN_CAP=$${MIN_CAP:-1}; \
+	MAX_CAP=$${MAX_CAP:-4}; \
+	TARGET_INV=$${TARGET_INV:-100}; \
+	INSTANCE_TYPE=$${INSTANCE_TYPE:-ml.m5.large}; \
+	echo "Deploying with: Min=$${MIN_CAP}, Max=$${MAX_CAP}, Target=$${TARGET_INV}, Type=$${INSTANCE_TYPE}"; \
+	aws cloudformation deploy \
+		--template-file infrastructure/cloudformation-complete.yaml \
+		--stack-name ml-pipeline-stack \
+		--parameter-overrides \
+			EndpointMinCapacity=$${MIN_CAP} \
+			EndpointMaxCapacity=$${MAX_CAP} \
+			EndpointTargetInvocations=$${TARGET_INV} \
+			SageMakerInstanceType=$${INSTANCE_TYPE} \
+		--capabilities CAPABILITY_NAMED_IAM
+	@echo "Updating Lambda function with latest code..."
+	@$(MAKE) update-lambda
+	@echo "✅ Custom deployment complete!"
 
 # Clean up existing Lambda function (for CloudFormation deployment)
 cleanup-lambda:
@@ -134,12 +195,46 @@ get-sagemaker-api-url:
 		--query 'Stacks[0].Outputs[?OutputKey==`SageMakerApiUrl`].OutputValue' \
 		--output text
 
-# Get SageMaker model endpoints
+# Get SageMaker model endpoints with scaling info
 get-endpoints:
 	@echo "SageMaker Endpoints:"
 	@aws sagemaker list-endpoints \
 		--query 'Endpoints[?contains(EndpointName, `kmeans`)].{Name:EndpointName,Status:EndpointStatus,Created:CreationTime}' \
 		--output table
+	@echo ""
+	@echo "Endpoint Configuration Details:"
+	@ENDPOINT_NAME=$(aws sagemaker list-endpoints --query 'Endpoints[?contains(EndpointName, `kmeans`)].EndpointName' --output text | head -1); \
+	if [ ! -z "$ENDPOINT_NAME" ]; then \
+		aws sagemaker describe-endpoint --endpoint-name $ENDPOINT_NAME \
+			--query 'ProductionVariants[0].{InstanceType:InstanceType,CurrentInstanceCount:CurrentInstanceCount,DesiredInstanceCount:DesiredInstanceCount}' \
+			--output table; \
+	else \
+		echo "No K-means endpoints found"; \
+	fi
+
+# Get auto-scaling configuration and metrics
+get-scaling:
+	@echo "Auto-Scaling Configuration:"
+	@ENDPOINT_NAME=$(aws sagemaker list-endpoints --query 'Endpoints[?contains(EndpointName, `kmeans`)].EndpointName' --output text | head -1); \
+	if [ ! -z "$ENDPOINT_NAME" ]; then \
+		echo "Endpoint: $ENDPOINT_NAME"; \
+		echo ""; \
+		echo "Scalable Targets:"; \
+		aws application-autoscaling describe-scalable-targets \
+			--service-namespace sagemaker \
+			--resource-ids endpoint/$ENDPOINT_NAME/variant/AllTraffic \
+			--query 'ScalableTargets[0].{MinCapacity:MinCapacity,MaxCapacity:MaxCapacity,CurrentCapacity:CurrentCapacity}' \
+			--output table 2>/dev/null || echo "No auto-scaling configured"; \
+		echo ""; \
+		echo "Scaling Policies:"; \
+		aws application-autoscaling describe-scaling-policies \
+			--service-namespace sagemaker \
+			--resource-id endpoint/$ENDPOINT_NAME/variant/AllTraffic \
+			--query 'ScalingPolicies[0].TargetTrackingScalingPolicyConfiguration.{TargetValue:TargetValue,MetricType:PredefinedMetricSpecification.PredefinedMetricType}' \
+			--output table 2>/dev/null || echo "No scaling policies found"; \
+	else \
+		echo "No K-means endpoints found"; \
+	fi
 
 # Get model artifacts location
 get-model-artifacts:
@@ -176,7 +271,7 @@ test-api:
 	curl -X POST $$API_URL \
 		-H "Content-Type: application/json" \
 		-d '{ \
-			"text": "The product works well but setup was confusing", \
+			"text": "El producto funciona bien, pero la configuración fue confusa.", \
 			"source": "customer_review", \
 			"category": "product_feedback" \
 		}' | jq .

@@ -26,20 +26,20 @@ Parameters:
     Default: ml.t3.medium
     Description: Instance type for notebook
 
-  # EndpointMinCapacity:
-  #   Type: Number
-  #   Default: 1
-  #   Description: Minimum number of instances for SageMaker endpoint auto-scaling
+  EndpointMinCapacity:
+    Type: Number
+    Default: 1
+    Description: Minimum number of instances for SageMaker endpoint auto-scaling
 
-  # EndpointMaxCapacity:
-  #   Type: Number
-  #   Default: 4
-  #   Description: Maximum number of instances for SageMaker endpoint auto-scaling
+  EndpointMaxCapacity:
+    Type: Number
+    Default: 4
+    Description: Maximum number of instances for SageMaker endpoint auto-scaling
 
-  # EndpointTargetInvocations:
-  #   Type: Number
-  #   Default: 100
-  #   Description: Target invocations per instance per minute for auto-scaling
+  EndpointTargetInvocations:
+    Type: Number
+    Default: 100
+    Description: Target invocations per instance per minute for auto-scaling
 
 Resources:
   # ==================== S3 Buckets ====================
@@ -648,6 +648,75 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GenAIApi}/*/*"
 
+  # ==================== SageMaker Model and Endpoint ====================
+  SageMakerModel:
+    Type: AWS::SageMaker::Model
+    Properties:
+      ModelName: !Sub "${ProjectName}-kmeans-model-${Environment}"
+      ExecutionRoleArn: !GetAtt SageMakerExecutionRole.Arn
+      PrimaryContainer:
+        Image: !Sub "382416733822.dkr.ecr.${AWS::Region}.amazonaws.com/kmeans:1"
+        ModelDataUrl: !Sub "s3://${ModelBucket}/kmeans-model/model.tar.gz"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  SageMakerEndpointConfig:
+    Type: AWS::SageMaker::EndpointConfig
+    Properties:
+      EndpointConfigName: !Sub "${ProjectName}-kmeans-config-${Environment}"
+      ProductionVariants:
+        - ModelName: !GetAtt SageMakerModel.ModelName
+          VariantName: AllTraffic
+          InitialInstanceCount: !Ref EndpointMinCapacity
+          InstanceType: !Ref SageMakerInstanceType
+          InitialVariantWeight: 1
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  SageMakerEndpoint:
+    Type: AWS::SageMaker::Endpoint
+    Properties:
+      EndpointName: !Sub "${ProjectName}-kmeans-endpoint-${Environment}"
+      EndpointConfigName: !GetAtt SageMakerEndpointConfig.EndpointConfigName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # =================================================================
+  # ========= HERE IS THE AUTO-SCALING CONFIGURATION ================
+  # =================================================================
+
+  EndpointScalableTarget:
+    Type: "AWS::ApplicationAutoScaling::ScalableTarget"
+    Properties:
+      MaxCapacity: !Ref EndpointMaxCapacity
+      MinCapacity: !Ref EndpointMinCapacity
+      ResourceId: !Sub "endpoint/${SageMakerEndpoint.EndpointName}/variant/AllTraffic"
+      RoleARN: !GetAtt SageMakerExecutionRole.Arn
+      ScalableDimension: "sagemaker:variant:DesiredInstanceCount"
+      ServiceNamespace: "sagemaker"
+
+  EndpointScalingPolicy:
+    Type: "AWS::ApplicationAutoScaling::ScalingPolicy"
+    Properties:
+      PolicyName: !Sub "SageMakerEndpointScalingPolicy-${Environment}"
+      PolicyType: "TargetTrackingScaling"
+      ScalingTargetId: !Ref EndpointScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: !Ref EndpointTargetInvocations
+        PredefinedMetricSpecification:
+          PredefinedMetricType: "SageMakerVariantInvocationsPerInstance"
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
 Outputs:
   DataBucketName:
     Description: Name of the data S3 bucket
@@ -696,3 +765,9 @@ Outputs:
     Value: !Sub "https://${GenAIApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/segment"
     Export:
       Name: !Sub "${AWS::StackName}-SageMakerApiUrl"
+
+  SageMakerEndpointName:
+    Description: Name of the SageMaker K-means endpoint
+    Value: !GetAtt SageMakerEndpoint.EndpointName
+    Export:
+      Name: !Sub "${AWS::StackName}-SageMakerEndpoint"
